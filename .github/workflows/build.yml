@@ -1,7 +1,16 @@
 name: build
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   test:
@@ -12,6 +21,8 @@ jobs:
       - run: 'sudo chmod +x /usr/libexec/docker/cli-plugins/docker-compose'
       
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v2
@@ -20,5 +31,23 @@ jobs:
           distribution: 'adopt'
           cache: maven
 
-      - name: Maven Test
-        run: ./mvnw test
+      - name: Install AppMap tools
+        id: install-appmap
+        uses: getappmap/install-action@v1
+        with:
+          project-type: gradle
+      - name: Commit changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "ci: Add AppMap language agent and appmap.yml"
+
+      - name: Run tests
+        run: ./gradlew appmap test
+
+      # Begin AppMap bootstrap archive step
+      - name: Archive AppMaps
+        id: appmap-bootstrap-archive-appmaps
+        uses: getappmap/archive-action@v1
+        with:
+          revision: ${{ github.event.pull_request.base.sha }}
+      # End AppMap bootstrap archive step
